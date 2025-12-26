@@ -32,8 +32,14 @@ const totalBars = barsPerFace * 6; // 6 faces
 const barSpacing = 0.3;
 const barBaseSize = 0.1;
 const bars: THREE.Mesh[] = [];
-const barBasePositions: THREE.Vector3[] = [];
+const barNormals: THREE.Vector3[] = []; // Store normal direction for each bar
+const barBasePositions: THREE.Vector3[] = []; // Store base position on cube surface for each bar
 const barHeights: number[] = new Array(totalBars).fill(0);
+
+// Configuration parameters
+let barSensitivity = 30; // Configurable bar height scaling
+let rotationSpeedX = 0.01;
+let rotationSpeedY = -0.01;
 
 // Create bars for each face of the cube
 function createBarsForFace(
@@ -54,24 +60,41 @@ function createBarsForFace(
 
     // Position on the face (base position on cube surface)
     const basePosition = new THREE.Vector3()
-      .addScaledVector(normal, 1.01) // Slightly outside cube surface
+      .addScaledVector(normal, 1.0) // On cube surface (edge of cube)
       .addScaledVector(right, x)
       .addScaledVector(up, y);
 
-    // Create bar geometry (will be scaled in animation)
+    // Create bar geometry - depth is small, will be scaled along z-axis
+    // Geometry extends from -0.05 to +0.05 in local z
+    // We'll position the bar center so the back edge (-0.05) stays at the cube surface
     const barGeometry = new THREE.BoxGeometry(barBaseSize, barBaseSize, 0.1);
     const barMaterial = new THREE.MeshBasicMaterial({
       color: new THREE.Color().setHSL((faceIndex * 60) / 360, 1, 0.5)
     });
     const bar = new THREE.Mesh(barGeometry, barMaterial);
-    bar.position.copy(basePosition);
-    // Orient bar to extend outward from face
-    bar.lookAt(basePosition.clone().add(normal));
+    
+    // Store the base position (on cube surface) - this is where the back edge should stay
+    // We'll update the bar position in the animation loop to keep the base fixed
+    barBasePositions.push(basePosition.clone());
+    
+    // Initially position bar center at basePosition + normal * 0.05
+    // This puts the back edge (-0.05 in local z) at the cube surface
+    const initialOffset = normal.clone().multiplyScalar(0.05);
+    bar.position.copy(basePosition).add(initialOffset);
+    
+    // Orient bar so its local z-axis points along the face normal (outward)
+    // Use quaternion to rotate z-axis to match normal
+    const quaternion = new THREE.Quaternion();
+    const defaultZ = new THREE.Vector3(0, 0, 1);
+    quaternion.setFromUnitVectors(defaultZ, normal);
+    bar.quaternion.copy(quaternion);
+    
     // Add bar as child of cube so it rotates with the cube
     cube.add(bar);
-    // Store base position AFTER adding to cube, so it's in cube's local space
+    
+    // Store the bar and its normal
     bars.push(bar);
-    barBasePositions.push(bar.position.clone());
+    barNormals.push(normal.clone());
   }
 }
 
@@ -123,6 +146,82 @@ createBarsForFace(
 const fftSize = 512;
 let microphone: Microphone | null = null;
 
+// Create UI controls container
+const controlsContainer = document.createElement("div");
+controlsContainer.style.position = "absolute";
+controlsContainer.style.top = "20px";
+controlsContainer.style.left = "20px";
+controlsContainer.style.zIndex = "1000";
+controlsContainer.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
+controlsContainer.style.padding = "15px";
+controlsContainer.style.borderRadius = "8px";
+controlsContainer.style.color = "white";
+controlsContainer.style.fontFamily = "system-ui, sans-serif";
+controlsContainer.style.fontSize = "14px";
+controlsContainer.style.display = "none"; // Hidden until microphone is active
+document.body.appendChild(controlsContainer);
+
+// Microphone status indicator
+const micStatusIndicator = document.createElement("div");
+micStatusIndicator.style.marginBottom = "10px";
+micStatusIndicator.style.padding = "8px";
+micStatusIndicator.style.borderRadius = "4px";
+micStatusIndicator.style.backgroundColor = "rgba(255, 0, 0, 0.3)";
+micStatusIndicator.style.display = "none";
+micStatusIndicator.innerHTML = '<span style="color: #ff4444;">●</span> Microphone: Inactive';
+controlsContainer.appendChild(micStatusIndicator);
+
+// Bar sensitivity control
+const sensitivityLabel = document.createElement("label");
+sensitivityLabel.textContent = "Bar Sensitivity: ";
+sensitivityLabel.style.display = "block";
+sensitivityLabel.style.marginBottom = "5px";
+controlsContainer.appendChild(sensitivityLabel);
+
+const sensitivitySlider = document.createElement("input");
+sensitivitySlider.type = "range";
+sensitivitySlider.min = "5";
+sensitivitySlider.max = "100";
+sensitivitySlider.value = barSensitivity.toString();
+sensitivitySlider.style.width = "200px";
+sensitivitySlider.style.marginBottom = "10px";
+sensitivitySlider.addEventListener("input", (e) => {
+  barSensitivity = parseFloat((e.target as HTMLInputElement).value);
+  sensitivityValue.textContent = barSensitivity.toFixed(0);
+});
+controlsContainer.appendChild(sensitivitySlider);
+
+const sensitivityValue = document.createElement("span");
+sensitivityValue.textContent = barSensitivity.toFixed(0);
+sensitivityValue.style.marginLeft = "10px";
+sensitivityLabel.appendChild(sensitivityValue);
+
+// Rotation speed control
+const rotationLabel = document.createElement("label");
+rotationLabel.textContent = "Rotation Speed: ";
+rotationLabel.style.display = "block";
+rotationLabel.style.marginBottom = "5px";
+controlsContainer.appendChild(rotationLabel);
+
+const rotationSlider = document.createElement("input");
+rotationSlider.type = "range";
+rotationSlider.min = "0";
+rotationSlider.max = "50";
+rotationSlider.value = "10";
+rotationSlider.style.width = "200px";
+rotationSlider.addEventListener("input", (e) => {
+  const speed = parseFloat((e.target as HTMLInputElement).value) / 1000;
+  rotationSpeedX = speed;
+  rotationSpeedY = -speed;
+  rotationValue.textContent = (speed * 1000).toFixed(1);
+});
+controlsContainer.appendChild(rotationSlider);
+
+const rotationValue = document.createElement("span");
+rotationValue.textContent = "10.0";
+rotationValue.style.marginLeft = "10px";
+rotationLabel.appendChild(rotationValue);
+
 // Start button handler
 function startListening(): void {
   const userConfirmed = confirm(
@@ -135,7 +234,28 @@ function startListening(): void {
   }
 
   microphone = new Microphone(fftSize);
-  startButton.style.display = "none";
+  
+  // Check microphone initialization status
+  const checkMicStatus = setInterval(() => {
+    if (microphone?.initialized) {
+      startButton.style.display = "none";
+      controlsContainer.style.display = "block";
+      micStatusIndicator.style.display = "block";
+      micStatusIndicator.style.backgroundColor = "rgba(0, 255, 0, 0.3)";
+      micStatusIndicator.innerHTML = '<span style="color: #44ff44;">●</span> Microphone: Active';
+      clearInterval(checkMicStatus);
+    }
+  }, 100);
+  
+  // Timeout after 5 seconds
+  setTimeout(() => {
+    clearInterval(checkMicStatus);
+    if (!microphone?.initialized) {
+      micStatusIndicator.style.display = "block";
+      micStatusIndicator.style.backgroundColor = "rgba(255, 0, 0, 0.3)";
+      micStatusIndicator.innerHTML = '<span style="color: #ff4444;">●</span> Microphone: Failed to initialize';
+    }
+  }, 5000);
 }
 
 // Create start button
@@ -153,9 +273,9 @@ document.body.appendChild(startButton);
 function animate(): void {
   requestAnimationFrame(animate);
 
-  // Rotate cube
-  cube.rotation.x += 0.01;
-  cube.rotation.y -= 0.01;
+  // Rotate cube with configurable speed
+  cube.rotation.x += rotationSpeedX;
+  cube.rotation.y += rotationSpeedY;
 
   // Update bars based on microphone input
   if (microphone?.initialized) {
@@ -166,8 +286,8 @@ function animate(): void {
       const sampleIndex = i % samples.length;
       const micInput = Math.abs(samples[sampleIndex]);
 
-      // Calculate target height (similar to bar.js pattern)
-      const sound = micInput * 1.5; // Scaled down for 3D space
+      // Calculate target height with configurable sensitivity
+      const sound = micInput * barSensitivity;
 
       // Update height with smoothing
       if (sound > barHeights[i]) {
@@ -176,15 +296,20 @@ function animate(): void {
         barHeights[i] -= barHeights[i] * 0.01; // Smooth decay
       }
 
-      // Update bar scale and position
+      // Update bar scale - bars extend along their local z-axis
       const targetHeight = Math.max(barHeights[i], 0.1); // Minimum height
       bars[i].scale.z = targetHeight;
-
-      // Update bar position to extend from cube surface
-      // Calculate normal from base position (in cube's local space, so it rotates correctly)
-      const localNormal = barBasePositions[i].clone().normalize();
-      const extension = localNormal.clone().multiplyScalar(targetHeight * 0.5);
-      bars[i].position.copy(barBasePositions[i]).add(extension);
+      
+      // Update bar position to keep the base edge at the cube surface
+      // Geometry extends from -0.05 to +0.05 in local z
+      // When scaled by targetHeight, it extends from -0.05*targetHeight to +0.05*targetHeight
+      // To keep the back edge (-0.05*targetHeight) at basePosition, we offset the center by 0.05*targetHeight
+      // along the normal direction (in cube's local space)
+      // Get the bar's local z-axis direction in cube's local space
+      const localZ = new THREE.Vector3(0, 0, 1);
+      localZ.applyQuaternion(bars[i].quaternion);
+      const baseOffset = localZ.clone().multiplyScalar(0.05 * targetHeight);
+      bars[i].position.copy(barBasePositions[i]).add(baseOffset);
     }
   }
 
