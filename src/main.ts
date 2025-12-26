@@ -17,9 +17,9 @@ document.body.appendChild(renderer.domElement);
 
 // Create the main cube
 const cubeGeometry = new THREE.BoxGeometry(2, 2, 2);
-const cubeMaterial = new THREE.MeshBasicMaterial({ 
+const cubeMaterial = new THREE.MeshBasicMaterial({
   color: 0x00ff00,
-  wireframe: true 
+  wireframe: true
 });
 const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
 scene.add(cube);
@@ -33,7 +33,6 @@ const barSpacing = 0.3;
 const barBaseSize = 0.1;
 const bars: THREE.Mesh[] = [];
 const barBasePositions: THREE.Vector3[] = [];
-const barNormals: THREE.Vector3[] = [];
 const barHeights: number[] = new Array(totalBars).fill(0);
 
 // Create bars for each face of the cube
@@ -60,13 +59,9 @@ function createBarsForFace(
       .addScaledVector(up, y);
 
     // Create bar geometry (will be scaled in animation)
-    const barGeometry = new THREE.BoxGeometry(
-      barBaseSize,
-      barBaseSize,
-      0.1
-    );
+    const barGeometry = new THREE.BoxGeometry(barBaseSize, barBaseSize, 0.1);
     const barMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color().setHSL((faceIndex * 60) / 360, 1, 0.5),
+      color: new THREE.Color().setHSL((faceIndex * 60) / 360, 1, 0.5)
     });
     const bar = new THREE.Mesh(barGeometry, barMaterial);
     bar.position.copy(basePosition);
@@ -74,9 +69,9 @@ function createBarsForFace(
     bar.lookAt(basePosition.clone().add(normal));
     // Add bar as child of cube so it rotates with the cube
     cube.add(bar);
+    // Store base position AFTER adding to cube, so it's in cube's local space
     bars.push(bar);
-    barBasePositions.push(basePosition.clone());
-    barNormals.push(normal.clone());
+    barBasePositions.push(bar.position.clone());
   }
 }
 
@@ -163,7 +158,7 @@ function animate(): void {
   cube.rotation.y -= 0.01;
 
   // Update bars based on microphone input
-  if (microphone && microphone.initialized) {
+  if (microphone?.initialized) {
     const samples = microphone.samples;
 
     for (let i = 0; i < bars.length; i++) {
@@ -184,10 +179,11 @@ function animate(): void {
       // Update bar scale and position
       const targetHeight = Math.max(barHeights[i], 0.1); // Minimum height
       bars[i].scale.z = targetHeight;
-      
+
       // Update bar position to extend from cube surface
-      // Position = base position + extension along normal
-      const extension = barNormals[i].clone().multiplyScalar(targetHeight * 0.5);
+      // Calculate normal from base position (in cube's local space, so it rotates correctly)
+      const localNormal = barBasePositions[i].clone().normalize();
+      const extension = localNormal.clone().multiplyScalar(targetHeight * 0.5);
       bars[i].position.copy(barBasePositions[i]).add(extension);
     }
   }
