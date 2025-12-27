@@ -26,7 +26,8 @@ camera.position.set(6, 8, 14);
 orbit.update();
 
 const uniforms = {
-  u_time: { value: 0 }
+  u_time: { value: 0 },
+  u_frequency: { value: 0 }
 };
 
 const material = new THREE.ShaderMaterial({
@@ -41,21 +42,24 @@ scene.add(mesh);
 
 const clock = new THREE.Clock();
 
-let currentScale = 1;
-const lerpFactor = 0.1; // Lower = smoother
+// let currentScale = 1;
+// const lerpFactor = 0.1; // Lower = smoother
 
 function animate() {
+  if (microphone) {
+    // const volume = microphone.volume;
+    // const targetScale = 1 + volume * 2;
+    // Lerp it like you're werth it
+    // currentScale += (targetScale - currentScale) * lerpFactor;
+    // mesh.scale.setScalar(currentScale);
+
+    // this is just using one of the samples, but there's a whole bunch
+    // that could all be used by different stuff
+    uniforms.u_frequency.value = microphone.averageFrequency;
+  }
+
   uniforms.u_time.value = clock.getElapsedTime();
   renderer.render(scene, camera);
-
-  if (microphone) {
-    const volume = microphone.volume;
-    const targetScale = 1 + volume * 2;
-
-    // Lerp it like you're werth it
-    currentScale += (targetScale - currentScale) * lerpFactor;
-    mesh.scale.setScalar(currentScale);
-  }
 }
 
 // might need to move this inside the function below

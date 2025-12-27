@@ -57,4 +57,15 @@ export class Microphone {
     const volume = Math.sqrt(sum / normSamples.length);
     return volume;
   }
+
+  get frequencyData(): Uint8Array {
+    this.analyser.getByteFrequencyData(this.dataArray);
+    return this.dataArray;
+  }
+
+  get averageFrequency(): number {
+    this.analyser.getByteFrequencyData(this.dataArray);
+    const sum = this.dataArray.reduce((acc, val) => acc + val, 0);
+    return sum / this.dataArray.length;
+  }
 }
