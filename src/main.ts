@@ -1,13 +1,13 @@
 import "./style.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { setupUi } from "./ui.ts";
+import type { Microphone } from "./microphone.ts";
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
+let microphone: Microphone | null = null;
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
-
-// Sets the color of the background.
-// renderer.setClearColor(0xfefefe);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
@@ -41,20 +41,28 @@ scene.add(mesh);
 
 const clock = new THREE.Clock();
 
-// Creates a 12 by 12 grid helper.
-// const gridHelper = new THREE.GridHelper(12, 12);
-// scene.add(gridHelper);
-
-// Creates an axes helper with an axis length of 4.
-// const axesHelper = new THREE.AxesHelper(4);
-// scene.add(axesHelper);
+let currentScale = 1;
+const lerpFactor = 0.1; // Lower = smoother
 
 function animate() {
   uniforms.u_time.value = clock.getElapsedTime();
   renderer.render(scene, camera);
+
+  if (microphone) {
+    const volume = microphone.volume;
+    const targetScale = 1 + volume * 2;
+
+    // Lerp it like you're werth it
+    currentScale += (targetScale - currentScale) * lerpFactor;
+    mesh.scale.setScalar(currentScale);
+  }
 }
 
+// might need to move this inside the function below
 renderer.setAnimationLoop(animate);
+setupUi(document.querySelector<HTMLButtonElement>("#start-btn")!, (mic) => {
+  microphone = mic;
+});
 
 window.addEventListener("resize", function () {
   camera.aspect = window.innerWidth / window.innerHeight;

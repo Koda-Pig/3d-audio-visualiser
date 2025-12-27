@@ -48,3 +48,19 @@ button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
+
+.start-btn {
+  position: fixed;
+  inset: 0;
+  width: max-content;
+  height: min-content;
+  margin: auto;
+  transition-property: opacity, filter;
+  transition-duration: 0.3s;
+
+  &.hide {
+    opacity: 0;
+    pointer-events: none;
+    filter: blur(10px);
+  }
+}
