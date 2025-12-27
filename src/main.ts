@@ -1,6 +1,5 @@
 import "./style.css";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
   EffectComposer,
   RenderPass,
@@ -25,7 +24,8 @@ const params = {
   blue: 1,
   threshold: 0.5,
   strength: 0.4,
-  radius: 0.8
+  radius: 0.8,
+  rotationSpeed: 0.02
 };
 
 const scene = new THREE.Scene();
@@ -84,6 +84,7 @@ const clock = new THREE.Clock();
 const gui = new GUI();
 const colorsFolder = gui.addFolder("Colors");
 const bloomFolder = gui.addFolder("Bloom");
+const rotationFolder = gui.addFolder("Rotation");
 
 colorsFolder
   .add(params, "red", 0, 1)
@@ -104,6 +105,8 @@ bloomFolder
   .add(params, "radius", 0, 1)
   .onChange((value: string) => (bloomPass.radius = Number(value)));
 
+rotationFolder.add(params, "rotationSpeed", 0, 1);
+
 function animate() {
   if (microphone) {
     uniforms.u_frequency.value = microphone.averageFrequency;
@@ -112,6 +115,8 @@ function animate() {
   camera.position.x += (mouseX - camera.position.x) * 0.05;
   camera.position.y += (mouseY - camera.position.y) * 0.05;
   camera.lookAt(scene.position);
+
+  mesh.rotation.y += (params.rotationSpeed * Math.PI) / 180; // Convert degrees to radians
 
   uniforms.u_time.value = clock.getElapsedTime();
   bloomComposer.render();
