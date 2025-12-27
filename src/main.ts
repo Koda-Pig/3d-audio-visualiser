@@ -26,7 +26,7 @@ camera.position.set(6, 8, 14);
 orbit.update();
 
 const uniforms = {
-  u_time: { value: 0.0 }
+  u_time: { value: 0 }
 };
 
 const material = new THREE.ShaderMaterial({
