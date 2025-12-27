@@ -1,12 +1,17 @@
 import "./style.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { EffectComposer } from "three/examples/jsm/Addons.js";
+import { RenderPass } from "three/examples/jsm/Addons.js";
+import { UnrealBloomPass } from "three/examples/jsm/Addons.js";
+import { OutputPass } from "three/examples/jsm/Addons.js";
 import { setupUi } from "./ui.ts";
 import type { Microphone } from "./microphone.ts";
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 let microphone: Microphone | null = null;
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -16,6 +21,24 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 );
+const renderScene = new RenderPass(scene, camera);
+
+const THRESHOLD = 0.5;
+const STRENGTH = 0.2;
+const RADIUS = 0.8;
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  STRENGTH,
+  RADIUS,
+  THRESHOLD
+);
+
+const outputPass = new OutputPass();
+const bloomComposer = new EffectComposer(renderer);
+
+bloomComposer.addPass(renderScene);
+bloomComposer.addPass(bloomPass);
+bloomComposer.addPass(outputPass);
 
 // Sets orbit control to move the camera around.
 const orbit = new OrbitControls(camera, renderer.domElement);
@@ -47,19 +70,11 @@ const clock = new THREE.Clock();
 
 function animate() {
   if (microphone) {
-    // const volume = microphone.volume;
-    // const targetScale = 1 + volume * 2;
-    // Lerp it like you're werth it
-    // currentScale += (targetScale - currentScale) * lerpFactor;
-    // mesh.scale.setScalar(currentScale);
-
-    // this is just using one of the samples, but there's a whole bunch
-    // that could all be used by different stuff
     uniforms.u_frequency.value = microphone.averageFrequency;
   }
 
   uniforms.u_time.value = clock.getElapsedTime();
-  renderer.render(scene, camera);
+  bloomComposer.render();
 }
 
 // might need to move this inside the function below
@@ -72,4 +87,5 @@ window.addEventListener("resize", function () {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  bloomComposer.setSize(window.innerWidth, window.innerHeight);
 });
