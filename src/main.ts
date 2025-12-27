@@ -19,8 +19,8 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
 const params = {
-  red: 1,
-  green: 1,
+  red: 0.25,
+  green: 0.25,
   blue: 1,
   threshold: 0.5,
   strength: 0.4,
