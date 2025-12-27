@@ -1,18 +1,32 @@
 import "./style.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { EffectComposer } from "three/examples/jsm/Addons.js";
-import { RenderPass } from "three/examples/jsm/Addons.js";
-import { UnrealBloomPass } from "three/examples/jsm/Addons.js";
-import { OutputPass } from "three/examples/jsm/Addons.js";
+import {
+  EffectComposer,
+  RenderPass,
+  UnrealBloomPass,
+  OutputPass
+} from "three/examples/jsm/Addons.js";
 import { setupUi } from "./ui.ts";
 import type { Microphone } from "./microphone.ts";
+import { GUI } from "lil-gui";
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 let microphone: Microphone | null = null;
+let mouseX = 0;
+let mouseY = 0;
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
+
+const params = {
+  red: 1,
+  green: 1,
+  blue: 1,
+  threshold: 0.5,
+  strength: 0.4,
+  radius: 0.8
+};
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
@@ -41,16 +55,18 @@ bloomComposer.addPass(bloomPass);
 bloomComposer.addPass(outputPass);
 
 // Sets orbit control to move the camera around.
-const orbit = new OrbitControls(camera, renderer.domElement);
+// const orbit = new OrbitControls(camera, renderer.domElement);
+// orbit.update(); // Has to be done everytime we update the camera position.
 
 // Camera positioning.
 camera.position.set(6, 8, 14);
-// Has to be done everytime we update the camera position.
-orbit.update();
 
 const uniforms = {
   u_time: { value: 0 },
-  u_frequency: { value: 0 }
+  u_frequency: { value: 0 },
+  u_red: { value: params.red },
+  u_green: { value: params.green },
+  u_blue: { value: params.blue }
 };
 
 const material = new THREE.ShaderMaterial({
@@ -65,13 +81,37 @@ scene.add(mesh);
 
 const clock = new THREE.Clock();
 
-// let currentScale = 1;
-// const lerpFactor = 0.1; // Lower = smoother
+const gui = new GUI();
+const colorsFolder = gui.addFolder("Colors");
+const bloomFolder = gui.addFolder("Bloom");
+
+colorsFolder
+  .add(params, "red", 0, 1)
+  .onChange((value: string) => (uniforms.u_red.value = Number(value)));
+colorsFolder
+  .add(params, "green", 0, 1)
+  .onChange((value: string) => (uniforms.u_green.value = Number(value)));
+colorsFolder
+  .add(params, "blue", 0, 1)
+  .onChange((value: string) => (uniforms.u_blue.value = Number(value)));
+bloomFolder
+  .add(params, "threshold", 0, 1)
+  .onChange((value: string) => (bloomPass.threshold = Number(value)));
+bloomFolder
+  .add(params, "strength", 0, 3)
+  .onChange((value: string) => (bloomPass.strength = Number(value)));
+bloomFolder
+  .add(params, "radius", 0, 1)
+  .onChange((value: string) => (bloomPass.radius = Number(value)));
 
 function animate() {
   if (microphone) {
     uniforms.u_frequency.value = microphone.averageFrequency;
   }
+
+  camera.position.x += (mouseX - camera.position.x) * 0.05;
+  camera.position.y += (mouseY - camera.position.y) * 0.05;
+  camera.lookAt(scene.position);
 
   uniforms.u_time.value = clock.getElapsedTime();
   bloomComposer.render();
@@ -88,4 +128,9 @@ window.addEventListener("resize", function () {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   bloomComposer.setSize(window.innerWidth, window.innerHeight);
+});
+
+document.addEventListener("mousemove", (e) => {
+  mouseX = (e.clientX - window.innerWidth / 2) / 100;
+  mouseY = (e.clientY - window.innerHeight / 2) / 100;
 });
