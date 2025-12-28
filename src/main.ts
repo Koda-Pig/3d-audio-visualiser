@@ -21,16 +21,6 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
-const params = {
-  red: 0.25,
-  green: 0.25,
-  blue: 1,
-  threshold: 0.5,
-  strength: 0.4,
-  radius: 0.8,
-  rotationSpeed: 0.02
-};
-
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
   45,
@@ -40,8 +30,8 @@ const camera = new THREE.PerspectiveCamera(
 );
 const renderScene = new RenderPass(scene, camera);
 
-const THRESHOLD = 0.5;
-const STRENGTH = 0.2;
+const THRESHOLD = 0;
+const STRENGTH = 0.1;
 const RADIUS = 0.8;
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
@@ -49,6 +39,16 @@ const bloomPass = new UnrealBloomPass(
   RADIUS,
   THRESHOLD
 );
+
+const params = {
+  red: 0.25,
+  green: 0.25,
+  blue: 1,
+  threshold: THRESHOLD,
+  strength: 0.4,
+  radius: 0.8,
+  rotationSpeed: 0.02
+};
 
 const outputPass = new OutputPass();
 const bloomComposer = new EffectComposer(renderer);
