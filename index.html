@@ -115,8 +115,20 @@
       uniform float u_red;
       uniform float u_green;
       uniform float u_blue;
+      uniform float u_bass;
+      uniform float u_mid;
+      uniform float u_treble;
+
       void main() {
-      	gl_FragColor = vec4(u_red, u_green, u_blue, 1.0);
+      	float bassIntensity = u_bass / 255.0;
+      	float midIntensity = u_mid / 255.0;
+      	float trebleIntensity = u_treble / 255.0;
+
+      	float r = u_red + (bassIntensity * 0.3) - (midIntensity * 0.15) - (trebleIntensity * 0.15);
+      	float g = u_green + (midIntensity * 0.3) - (bassIntensity * 0.15) - (trebleIntensity * 0.15);
+      	float b = u_blue + (trebleIntensity * 0.3) - (bassIntensity * 0.15) - (midIntensity * 0.15);
+
+      	gl_FragColor = vec4(clamp(r, 0.0, 1.0), clamp(g, 0.0, 1.0), clamp(b, 0.0, 1.0), 1.0);
       }
     </script>
   </body>
