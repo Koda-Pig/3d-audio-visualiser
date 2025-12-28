@@ -3,13 +3,14 @@ import { Microphone } from "./microphone";
 let fftSize = 512;
 
 export function setupUi(
-  element: HTMLButtonElement,
+  startBtn: HTMLButtonElement,
+  fullscreenBtn: HTMLButtonElement,
   onMicrophoneReady: (microphone: Microphone) => void
 ) {
   let isHidden = false;
-  async function handleBtnClick() {
+  async function handleStartClick() {
     isHidden = !isHidden;
-    element.classList.toggle("hide");
+    startBtn.classList.toggle("hide");
 
     const userConfirmed = confirm(
       "This application needs access to your microphone to visualize audio. Do you grant permission?"
@@ -23,5 +24,10 @@ export function setupUi(
     const microphone = await Microphone.create(fftSize);
     onMicrophoneReady(microphone); // Pass it back to main script
   }
-  element.addEventListener("click", handleBtnClick);
+  function handleFullscreenClick() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen();
+  }
+  startBtn.addEventListener("click", handleStartClick);
+  fullscreenBtn.addEventListener("click", handleFullscreenClick);
 }

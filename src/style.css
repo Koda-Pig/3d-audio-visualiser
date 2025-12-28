@@ -64,3 +64,9 @@ button:focus-visible {
     filter: blur(10px);
   }
 }
+
+.fullscreen-btn {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+}

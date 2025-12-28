@@ -130,9 +130,9 @@ function animate() {
     const treble = getAverage(freqData, 50, 100);
 
     // smooth it out
-    smoothBass = smooth(smoothBass, bass, 1.5); // making this 2 looks sick, but makes it change too quick
-    smoothMid = smooth(smoothMid, mid, 1.5); // making this 2 looks sick, but makes it change too quick
-    smoothTreble = smooth(smoothTreble, treble, 1.5); // making this 2 looks sick, but makes it change too quick
+    smoothBass = smooth(smoothBass, bass, 2); // making this 2 looks sick, but makes it change too quick
+    smoothMid = smooth(smoothMid, mid, 2); // making this 2 looks sick, but makes it change too quick
+    smoothTreble = smooth(smoothTreble, treble, 2); // making this 2 looks sick, but makes it change too quick
 
     uniforms.u_bass.value = smoothBass;
     uniforms.u_mid.value = smoothMid;
@@ -151,9 +151,13 @@ function animate() {
 
 // might need to move this inside the function below
 renderer.setAnimationLoop(animate);
-setupUi(document.querySelector<HTMLButtonElement>("#start-btn")!, (mic) => {
-  microphone = mic;
-});
+setupUi(
+  document.querySelector<HTMLButtonElement>("#start-btn")!,
+  document.querySelector<HTMLButtonElement>("#fullscreen-btn")!,
+  (mic) => {
+    microphone = mic;
+  }
+);
 
 window.addEventListener("resize", function () {
   camera.aspect = window.innerWidth / window.innerHeight;
