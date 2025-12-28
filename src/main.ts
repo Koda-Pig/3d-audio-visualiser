@@ -30,7 +30,7 @@ const camera = new THREE.PerspectiveCamera(
 );
 const renderScene = new RenderPass(scene, camera);
 
-const THRESHOLD = 0;
+const THRESHOLD = 1;
 const STRENGTH = 0.1;
 const RADIUS = 0.8;
 const bloomPass = new UnrealBloomPass(
@@ -130,9 +130,9 @@ function animate() {
     const treble = getAverage(freqData, 50, 100);
 
     // smooth it out
-    smoothBass = smooth(smoothBass, bass, 2);
-    smoothMid = smooth(smoothMid, mid, 2);
-    smoothTreble = smooth(smoothTreble, treble, 2);
+    smoothBass = smooth(smoothBass, bass, 1.5); // making this 2 looks sick, but makes it change too quick
+    smoothMid = smooth(smoothMid, mid, 1.5); // making this 2 looks sick, but makes it change too quick
+    smoothTreble = smooth(smoothTreble, treble, 1.5); // making this 2 looks sick, but makes it change too quick
 
     uniforms.u_bass.value = smoothBass;
     uniforms.u_mid.value = smoothMid;
