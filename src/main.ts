@@ -14,6 +14,9 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 let microphone: Microphone | null = null;
 let mouseX = 0;
 let mouseY = 0;
+let smoothBass = 0;
+let smoothMid = 0;
+let smoothTreble = 0;
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
@@ -113,15 +116,27 @@ rotationFolder.add(params, "rotationSpeed", 0, 1);
 const getAverage = (data: Uint8Array, index1: number, index2: number) =>
   data.slice(index1, index2).reduce((a, b) => a + b) / (index2 - index1);
 
+const smooth = (current: number, target: number, factor: number): number =>
+  current + (target - current) * factor;
+
 function animate() {
   if (microphone) {
     uniforms.u_frequency.value = microphone.averageFrequency;
 
     const freqData = microphone.frequencyData;
 
-    uniforms.u_bass.value = getAverage(freqData, 0, 10);
-    uniforms.u_mid.value = getAverage(freqData, 10, 50);
-    uniforms.u_treble.value = getAverage(freqData, 50, 100);
+    const bass = getAverage(freqData, 0, 10);
+    const mid = getAverage(freqData, 10, 50);
+    const treble = getAverage(freqData, 50, 100);
+
+    // smooth it out
+    smoothBass = smooth(smoothBass, bass, 2);
+    smoothMid = smooth(smoothMid, mid, 2);
+    smoothTreble = smooth(smoothTreble, treble, 2);
+
+    uniforms.u_bass.value = smoothBass;
+    uniforms.u_mid.value = smoothMid;
+    uniforms.u_treble.value = smoothTreble;
   }
 
   camera.position.x += (mouseX - camera.position.x) * 0.05;
