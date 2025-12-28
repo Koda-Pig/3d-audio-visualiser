@@ -64,6 +64,9 @@ camera.position.set(6, 8, 14);
 const uniforms = {
   u_time: { value: 0 },
   u_frequency: { value: 0 },
+  u_bass: { value: 0 },
+  u_mid: { value: 0 },
+  u_treble: { value: 0 },
   u_red: { value: params.red },
   u_green: { value: params.green },
   u_blue: { value: params.blue }
@@ -107,9 +110,18 @@ bloomFolder
 
 rotationFolder.add(params, "rotationSpeed", 0, 1);
 
+const getAverage = (data: Uint8Array, index1: number, index2: number) =>
+  data.slice(index1, index2).reduce((a, b) => a + b) / (index2 - index1);
+
 function animate() {
   if (microphone) {
     uniforms.u_frequency.value = microphone.averageFrequency;
+
+    const freqData = microphone.frequencyData;
+
+    uniforms.u_bass.value = getAverage(freqData, 0, 10);
+    uniforms.u_mid.value = getAverage(freqData, 10, 50);
+    uniforms.u_treble.value = getAverage(freqData, 50, 100);
   }
 
   camera.position.x += (mouseX - camera.position.x) * 0.05;
