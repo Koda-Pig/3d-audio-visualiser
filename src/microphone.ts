@@ -39,14 +39,12 @@ export class Microphone {
     this.microphone.connect(this.analyser);
   }
 
-  // can change to get samples() ??
   get samples(): number[] {
     this.analyser.getByteTimeDomainData(this.dataArray);
     const normSamples = [...this.dataArray].map((e) => e / 128 - 1);
     return normSamples;
   }
 
-  // can change to get volume() ??
   get volume(): number {
     this.analyser.getByteTimeDomainData(this.dataArray);
     const normSamples = [...this.dataArray].map((e) => e / 128 - 1);
