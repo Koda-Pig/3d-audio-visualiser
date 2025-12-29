@@ -31,7 +31,7 @@ const camera = new THREE.PerspectiveCamera(
 );
 const renderScene = new RenderPass(scene, camera);
 
-const THRESHOLD = 1;
+const THRESHOLD = 0;
 const STRENGTH = 0.1;
 const RADIUS = 0.8;
 const bloomPass = new UnrealBloomPass(
