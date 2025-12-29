@@ -102,19 +102,23 @@
       uniform float u_bass;
       uniform float u_mid;
       uniform float u_treble;
+      varying float vDisplacement;
+
       void main() {
-        float noise = 5. * pnoise(position + u_time, vec3(10.));
-      	// different frequencies on different aspects
+      	float noise = 5. * pnoise(position + u_time, vec3(10.));
       	float bassDisp = (u_bass / 50.) * (noise / 10.);
-        float midNoise = 3. * pnoise(position * 2.0 + u_time * 0.5, vec3(10.));
-        float midDisp = (u_mid / 60.) * (midNoise / 10.);
-        float displacement = bassDisp + midDisp;
-        vec3 newPosition = position + normal * displacement;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+      	float midNoise = 3. * pnoise(position * 2.0 + u_time * 0.5, vec3(10.));
+      	float midDisp = (u_mid / 60.) * (midNoise / 10.);
+      	float displacement = bassDisp + midDisp;
+      	vDisplacement = displacement;
+
+      	vec3 newPosition = position + normal * displacement;
+      	gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
       }
     </script>
 
     <script id="fragmentshader" type="fragment">
+      varying float vDisplacement;
       uniform float u_red;
       uniform float u_green;
       uniform float u_blue;
@@ -134,9 +138,11 @@
       	float midIntensity = u_mid / 255.0;
       	float trebleIntensity = u_treble / 255.0;
 
-      	float hue = mod(bassIntensity * 0.5 + midIntensity * 0.3, 1.0);
+      	float baseHue = mod(bassIntensity * 0.5 + midIntensity * 0.3, 1.0);
+      	float hue = mod(baseHue + vDisplacement * 2.0, 1.0);
+
       	float saturation = 0.7 + midIntensity * 0.3;
-      	float value = (u_time * 0.01) + 0.5 + (bassIntensity + trebleIntensity) * 0.001;
+      	float value = 0.5 + (bassIntensity + trebleIntensity) * 0.001;
       	vec3 color = hsv2rgb(vec3(hue, saturation, value));
       	gl_FragColor = vec4(color, 1.0);
       }

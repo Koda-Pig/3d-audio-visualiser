@@ -1,8 +1,10 @@
+varying float vDisplacement;
 uniform float u_red;
 uniform float u_green;
 uniform float u_blue;
 uniform float u_bass;
 uniform float u_mid;
+uniform float u_time;
 uniform float u_treble;
 
 vec3 hsv2rgb(vec3 c) {
@@ -16,9 +18,11 @@ void main() {
 	float midIntensity = u_mid / 255.0;
 	float trebleIntensity = u_treble / 255.0;
 
-	float hue = mod(u_time * 0.1 + bassIntensity * 0.5 + midIntensity * 0.3, 1.0);
+	float baseHue = mod(bassIntensity * 0.5 + midIntensity * 0.3, 1.0);
+	float hue = mod(baseHue + vDisplacement * 2.0, 1.0);
+
 	float saturation = 0.7 + midIntensity * 0.3;
-	float value = 0.5 + (bassIntensity + trebleIntensity) * 0.5;
+	float value = 0.5 + (bassIntensity + trebleIntensity) * 0.001;
 	vec3 color = hsv2rgb(vec3(hue, saturation, value));
 	gl_FragColor = vec4(color, 1.0);
 }

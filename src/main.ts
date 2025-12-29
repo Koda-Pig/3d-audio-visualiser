@@ -17,6 +17,7 @@ let mouseY = 0;
 let smoothBass = 0;
 let smoothMid = 0;
 let smoothTreble = 0;
+let wakeLock: null | WakeLockSentinel = null;
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
@@ -119,6 +120,31 @@ const getAverage = (data: Uint8Array, index1: number, index2: number) =>
 const smooth = (current: number, target: number, factor: number): number =>
   current + (target - current) * factor;
 
+async function requestWakeLock() {
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    console.info("WakeLock initialised.");
+  } catch (error) {
+    console.error("Failed to activate screen wakeLock:", error);
+  }
+}
+
+function handleVisibilityChange() {
+  if (wakeLock === null) return;
+
+  if (document.visibilityState === "visible") {
+    requestWakeLock();
+  } else {
+    wakeLock
+      .release()
+      .then(() => console.info("Screen wakeLock released"))
+      .catch((error) =>
+        console.error("Failed to release screen wakeLock:", error)
+      );
+    wakeLock = null;
+  }
+}
+
 function animate() {
   if (microphone) {
     uniforms.u_frequency.value = microphone.averageFrequency;
@@ -130,9 +156,9 @@ function animate() {
     const treble = getAverage(freqData, 50, 100);
 
     // smooth it out
-    smoothBass = smooth(smoothBass, bass, 2); // making this 2 looks sick, but makes it change too quick
-    smoothMid = smooth(smoothMid, mid, 2); // making this 2 looks sick, but makes it change too quick
-    smoothTreble = smooth(smoothTreble, treble, 2); // making this 2 looks sick, but makes it change too quick
+    smoothBass = smooth(smoothBass, bass, 0.5); // making this 2 looks sick, but makes it change too quick
+    smoothMid = smooth(smoothMid, mid, 0.5); // making this 2 looks sick, but makes it change too quick
+    smoothTreble = smooth(smoothTreble, treble, 0.5); // making this 2 looks sick, but makes it change too quick
 
     uniforms.u_bass.value = smoothBass;
     uniforms.u_mid.value = smoothMid;
@@ -156,6 +182,11 @@ setupUi(
   document.querySelector<HTMLButtonElement>("#fullscreen-btn")!,
   (mic) => {
     microphone = mic;
+    if ("wakeLock" in navigator) {
+      requestWakeLock();
+    } else {
+      console.warn("The wakeLock API is not supported by this browser.");
+    }
   }
 );
 
@@ -170,3 +201,7 @@ document.addEventListener("mousemove", (e) => {
   mouseX = (e.clientX - window.innerWidth / 2) / 100;
   mouseY = (e.clientY - window.innerHeight / 2) / 100;
 });
+
+if ("wakeLock" in navigator) {
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+}
