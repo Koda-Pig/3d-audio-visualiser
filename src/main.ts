@@ -42,9 +42,9 @@ const bloomPass = new UnrealBloomPass(
 );
 
 const params = {
-  red: 0.25,
-  green: 0.25,
-  blue: 1,
+  red: 0,
+  green: 0,
+  blue: 0,
   threshold: THRESHOLD,
   strength: STRENGTH,
   radius: 0.8,

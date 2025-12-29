@@ -11,6 +11,11 @@ Deployed to https://audio-visualiser-3d.netlify.app/
       1. Color change depending on ratio of bass/ treble/ mid?
       2. Multicolor? Seems to work with anti-smooth function.
    2. vertex displacement
+2. Smooth brightness value in shader to reduce bloom flickering
+   - Add `smoothBrightness` variable and `u_smoothBrightness` uniform in `main.ts`
+   - Calculate raw brightness from bass/treble, then smooth it with a lower factor (e.g., 0.1) for smoother transitions
+   - Update fragment shader to use `u_smoothBrightness` instead of calculated brightness value
+   - This will smooth the bloom effect while keeping hue and saturation reactive to audio
 
 ## Questions
 
