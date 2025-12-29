@@ -17,6 +17,7 @@ let mouseY = 0;
 let smoothBass = 0;
 let smoothMid = 0;
 let smoothTreble = 0;
+let smoothBrightness = 0;
 let wakeLock: null | WakeLockSentinel = null;
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -32,8 +33,8 @@ const camera = new THREE.PerspectiveCamera(
 const renderScene = new RenderPass(scene, camera);
 
 const THRESHOLD = 0;
-const STRENGTH = 0.1;
-const RADIUS = 0.8;
+const STRENGTH = 0.3;
+const RADIUS = 0.1;
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
   STRENGTH,
@@ -47,7 +48,7 @@ const params = {
   blue: 0,
   threshold: THRESHOLD,
   strength: STRENGTH,
-  radius: 0.8,
+  radius: RADIUS,
   rotationSpeed: 0.02
 };
 
@@ -71,6 +72,7 @@ const uniforms = {
   u_bass: { value: 0 },
   u_mid: { value: 0 },
   u_treble: { value: 0 },
+  u_smooth_brightness: { value: 0 },
   u_red: { value: params.red },
   u_green: { value: params.green },
   u_blue: { value: params.blue }
@@ -154,15 +156,18 @@ function animate() {
     const bass = getAverage(freqData, 0, 10);
     const mid = getAverage(freqData, 10, 50);
     const treble = getAverage(freqData, 50, 100);
+    const rawBrightness = bass + treble;
 
     // smooth it out
     smoothBass = smooth(smoothBass, bass, 0.5); // making this 2 looks sick, but makes it change too quick
     smoothMid = smooth(smoothMid, mid, 0.5); // making this 2 looks sick, but makes it change too quick
     smoothTreble = smooth(smoothTreble, treble, 0.5); // making this 2 looks sick, but makes it change too quick
+    smoothBrightness = smooth(smoothBrightness, rawBrightness, 0.1);
 
     uniforms.u_bass.value = smoothBass;
     uniforms.u_mid.value = smoothMid;
     uniforms.u_treble.value = smoothTreble;
+    uniforms.u_smooth_brightness.value = smoothBrightness;
   }
 
   camera.position.x += (mouseX - camera.position.x) * 0.05;
