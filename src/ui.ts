@@ -2,6 +2,11 @@ import { Microphone } from "./microphone";
 
 let fftSize = 512;
 
+function handleFullscreenClick() {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen();
+}
+
 export function setupUi(
   startBtn: HTMLButtonElement,
   fullscreenBtn: HTMLButtonElement,
@@ -24,10 +29,7 @@ export function setupUi(
     const microphone = await Microphone.create(fftSize);
     onMicrophoneReady(microphone); // Pass it back to main script
   }
-  function handleFullscreenClick() {
-    if (document.fullscreenElement) document.exitFullscreen();
-    else document.documentElement.requestFullscreen();
-  }
+
   startBtn.addEventListener("click", handleStartClick);
   fullscreenBtn.addEventListener("click", handleFullscreenClick);
 }

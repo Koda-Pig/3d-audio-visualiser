@@ -13,7 +13,7 @@ export class Microphone {
 
   static async create(fftSize: number): Promise<Microphone> {
     const instance = new Microphone(fftSize);
-    await instance.init(); // Async operation happens here
+    await instance.init();
     return instance;
   }
 

@@ -46,7 +46,7 @@ const params = {
   green: 0.25,
   blue: 1,
   threshold: THRESHOLD,
-  strength: 0.4,
+  strength: STRENGTH,
   radius: 0.8,
   rotationSpeed: 0.02
 };
