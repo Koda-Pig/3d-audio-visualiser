@@ -78,15 +78,21 @@ const uniforms = {
   u_blue: { value: params.blue }
 };
 
+function createSphere(radius: number, material: THREE.ShaderMaterial) {
+  const sphere = new THREE.IcosahedronGeometry(radius, 30);
+  return new THREE.Mesh(sphere, material);
+}
+
 const material = new THREE.ShaderMaterial({
   wireframe: true,
   uniforms,
   vertexShader: document.getElementById("vertexshader")!.textContent,
   fragmentShader: document.getElementById("fragmentshader")!.textContent
 });
-const sphere = new THREE.IcosahedronGeometry(4, 30);
-const mesh = new THREE.Mesh(sphere, material);
-scene.add(mesh);
+const outerSphere = createSphere(4, material);
+const innerSphere = createSphere(2, material);
+scene.add(outerSphere);
+scene.add(innerSphere);
 
 const clock = new THREE.Clock();
 
@@ -149,9 +155,9 @@ function animate() {
     const rawBrightness = bass + treble;
 
     // smooth it out
-    smoothBass = smooth(smoothBass, bass, 0.5); // making this 2 looks sick, but makes it change too quick
-    smoothMid = smooth(smoothMid, mid, 0.5); // making this 2 looks sick, but makes it change too quick
-    smoothTreble = smooth(smoothTreble, treble, 0.5); // making this 2 looks sick, but makes it change too quick
+    smoothBass = smooth(smoothBass, bass, 0.5); //
+    smoothMid = smooth(smoothMid, mid, 0.5);
+    smoothTreble = smooth(smoothTreble, treble, 0.5);
     smoothBrightness = smooth(smoothBrightness, rawBrightness, 0.1);
 
     uniforms.u_bass.value = smoothBass;
@@ -164,7 +170,8 @@ function animate() {
   camera.position.y += (mouseY - camera.position.y) * 0.05;
   camera.lookAt(scene.position);
 
-  mesh.rotation.y += (params.rotationSpeed * Math.PI) / 180; // Convert degrees to radians
+  outerSphere.rotation.y += (params.rotationSpeed * Math.PI) / 180; // Convert degrees to radians
+  innerSphere.rotation.y -= (params.rotationSpeed * Math.PI) / 180; // Convert degrees to radians
 
   uniforms.u_time.value = clock.getElapsedTime();
   bloomComposer.render();
