@@ -7,6 +7,7 @@ uniform float u_mid;
 uniform float u_time;
 uniform float u_treble;
 uniform float u_smooth_brightness;
+uniform float u_is_secondary;
 
 vec3 hsv2rgb(vec3 c) {
 	vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
@@ -19,7 +20,13 @@ void main() {
 	float midIntensity = u_mid / 255.0;
 	float trebleIntensity = u_treble / 255.0;
 
-	float baseHue = mod(bassIntensity * 0.5 + midIntensity * 0.3, 1.0);
+	float baseHue;
+	if (u_is_secondary > 0.5) {
+		baseHue = mod(trebleIntensity * 0.3, 1.0);
+	} else {
+		baseHue = mod(bassIntensity * 0.5 + midIntensity * 0.3, 1.0);
+	}
+
 	float hue = mod(baseHue + vDisplacement * 0.2, 1.0);
 
 	float saturation = 0.7 + midIntensity * 0.3;

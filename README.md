@@ -8,3 +8,4 @@ Deployed to https://audio-visualiser-3d.netlify.app/
 
 1. Add more visual changes depending on unused data from microphone, such as samples, volume, and frequency data. Currently only averageFrequency is used.
 2. Change secondary sphere to have inverted color ratio to primary sphere.
+3. Add control for fftSize, which should control the intensity of the audio visualisation. Must be a power of 2.

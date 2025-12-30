@@ -72,7 +72,7 @@ bloomComposer.addPass(outputPass);
 // Camera positioning.
 camera.position.set(6, 8, 14);
 
-const uniforms = {
+const baseUniforms = {
   u_time: { value: 0 },
   u_frequency: { value: 0 },
   u_bass: { value: 0 },
@@ -83,20 +83,34 @@ const uniforms = {
   u_green: { value: params.green },
   u_blue: { value: params.blue }
 };
+const uniforms1 = {
+  ...baseUniforms,
+  u_is_secondary: { value: 0 }
+};
+const uniforms2 = {
+  ...baseUniforms,
+  u_is_secondary: { value: 1 }
+};
 
 function createSphere(radius: number, material: THREE.ShaderMaterial) {
   const sphere = new THREE.IcosahedronGeometry(radius, 30);
   return new THREE.Mesh(sphere, material);
 }
 
-const material = new THREE.ShaderMaterial({
+const material1 = new THREE.ShaderMaterial({
   wireframe: true,
-  uniforms,
+  uniforms: uniforms1,
   vertexShader: document.getElementById("vertexshader")!.textContent,
   fragmentShader: document.getElementById("fragmentshader")!.textContent
 });
-const sphere1 = createSphere(params.sphere1Size, material);
-const sphere2 = createSphere(params.sphere2Size, material);
+const material2 = new THREE.ShaderMaterial({
+  wireframe: true,
+  uniforms: uniforms2,
+  vertexShader: document.getElementById("vertexshader")!.textContent,
+  fragmentShader: document.getElementById("fragmentshader")!.textContent
+});
+const sphere1 = createSphere(params.sphere1Size, material1);
+const sphere2 = createSphere(params.sphere2Size, material2);
 scene.add(sphere1);
 scene.add(sphere2);
 const SPHERE1_BASE_RADIUS = params.sphere1Size;
@@ -119,7 +133,22 @@ bloomFolder
   .add(params, "radius", 0, 1)
   .onChange((value: string) => (bloomPass.radius = Number(value)));
 rotationFolder.add(params, "rotationSpeed", 0, 1);
-modeFolder.add(params, "mode", ["nested", "orbiting"]);
+modeFolder
+  .add(params, "mode", ["nested", "orbiting"])
+  .onChange((value: string) => {
+    if (value === "nested") {
+      // set sphere 1 to large size, sphere 2 to small size
+      params.sphere1Size = 4;
+      params.sphere2Size = 2;
+    } else {
+      // set sphere 1 and 2 to same size
+      params.sphere1Size = 3;
+      params.sphere2Size = 3;
+    }
+    // Update the sphere scales directly
+    sphere1.scale.setScalar(params.sphere1Size / SPHERE1_BASE_RADIUS);
+    sphere2.scale.setScalar(params.sphere2Size / SPHERE2_BASE_RADIUS);
+  });
 modeFolder.add(params, "orbitalRadius", 1, 6).name("Orbital Radius");
 modeFolder.add(params, "orbitalSpeed", 0, 9).name("Orbital Speed");
 modeFolder
@@ -169,8 +198,6 @@ function handleVisibilityChange() {
 
 function animate() {
   if (microphone) {
-    uniforms.u_frequency.value = microphone.averageFrequency;
-
     const freqData = microphone.frequencyData;
 
     const bass = getAverage(freqData, 0, 10);
@@ -184,10 +211,13 @@ function animate() {
     smoothTreble = smooth(smoothTreble, treble, 0.5);
     smoothBrightness = smooth(smoothBrightness, rawBrightness, 0.1);
 
-    uniforms.u_bass.value = smoothBass;
-    uniforms.u_mid.value = smoothMid;
-    uniforms.u_treble.value = smoothTreble;
-    uniforms.u_smooth_brightness.value = smoothBrightness;
+    [uniforms1, uniforms2].forEach((uniforms) => {
+      uniforms.u_frequency.value = microphone!.averageFrequency;
+      uniforms.u_bass.value = smoothBass;
+      uniforms.u_mid.value = smoothMid;
+      uniforms.u_treble.value = smoothTreble;
+      uniforms.u_smooth_brightness.value = smoothBrightness;
+    });
   }
 
   camera.position.x += (mouseX - camera.position.x) * 0.05;
@@ -218,7 +248,9 @@ function animate() {
     sphere2.position.y = 0;
   }
 
-  uniforms.u_time.value = clock.getElapsedTime();
+  [uniforms1, uniforms2].forEach((uniforms) => {
+    uniforms.u_time.value = clock.getElapsedTime();
+  });
   bloomComposer.render();
 }
 
