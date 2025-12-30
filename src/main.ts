@@ -91,19 +91,9 @@ scene.add(mesh);
 const clock = new THREE.Clock();
 
 const gui = new GUI();
-const colorsFolder = gui.addFolder("Colors");
 const bloomFolder = gui.addFolder("Bloom");
 const rotationFolder = gui.addFolder("Rotation");
 
-colorsFolder
-  .add(params, "red", 0, 1)
-  .onChange((value: string) => (uniforms.u_red.value = Number(value)));
-colorsFolder
-  .add(params, "green", 0, 1)
-  .onChange((value: string) => (uniforms.u_green.value = Number(value)));
-colorsFolder
-  .add(params, "blue", 0, 1)
-  .onChange((value: string) => (uniforms.u_blue.value = Number(value)));
 bloomFolder
   .add(params, "threshold", 0, 1)
   .onChange((value: string) => (bloomPass.threshold = Number(value)));
