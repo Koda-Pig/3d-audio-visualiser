@@ -98,18 +98,35 @@
       	return 2.2 * n_xyz;
       }
       uniform float u_time;
-      uniform float u_frequency;
-      uniform float u_bass;
-      uniform float u_mid;
-      uniform float u_treble;
+      uniform sampler2D u_samples;
+      uniform float u_sampleCount;
+      uniform float u_textureWidth;
+      uniform float u_sampleIntensity;
+      uniform float u_sampleAmplification;
       varying float vDisplacement;
 
       void main() {
-      	float noise = 5. * pnoise(position + u_time, vec3(10.));
-      	float bassDisp = (u_bass / 50.) * (noise / 10.);
-      	float midNoise = 3. * pnoise(position * 2.0 + u_time * 0.5, vec3(10.));
-      	float midDisp = (u_mid / 60.) * (midNoise / 10.);
-      	float displacement = bassDisp + midDisp;
+      	// Time-domain displacement
+      	// Map vertex position to sample index using position hash
+      	// Use a more consistent mapping based on vertex position
+      	float hash = dot(position, vec3(12.9898, 78.233, 37.719));
+      	float sampleIndex = mod(hash * 43758.5453, u_sampleCount);
+      	float pixelIndex = floor(sampleIndex / 4.0);
+      	float channelIndex = mod(sampleIndex, 4.0);
+      	float pixelU = (pixelIndex + 0.5) / u_textureWidth;
+      	vec4 pixelData = texture2D(u_samples, vec2(pixelU, 0.5));
+      	// Extract sample from appropriate channel and denormalize from [0, 1] to [-1, 1]
+      	float sampleValue = 0.0;
+      	if (channelIndex < 0.5) sampleValue = pixelData.r;
+      	else if (channelIndex < 1.5) sampleValue = pixelData.g;
+      	else if (channelIndex < 2.5) sampleValue = pixelData.b;
+      	else sampleValue = pixelData.a;
+      	sampleValue = sampleValue * 2.0 - 1.0; // Denormalize from [0, 1] to [-1, 1]
+      	// Amplify small signals to make them more visible (lower threshold)
+      	// Multiply by amplification to boost quiet sounds
+      	float amplifiedValue = sampleValue * u_sampleAmplification;
+      	// Scale displacement
+      	float displacement = amplifiedValue * u_sampleIntensity;
       	vDisplacement = displacement;
 
       	vec3 newPosition = position + normal * displacement;
@@ -122,11 +139,7 @@
       uniform float u_red;
       uniform float u_green;
       uniform float u_blue;
-      uniform float u_bass;
-      uniform float u_mid;
       uniform float u_time;
-      uniform float u_treble;
-      uniform float u_smooth_brightness;
       uniform float u_is_secondary;
 
       vec3 hsv2rgb(vec3 c) {
@@ -136,21 +149,20 @@
       }
 
       void main() {
-      	float bassIntensity = u_bass / 255.0;
-      	float midIntensity = u_mid / 255.0;
-      	float trebleIntensity = u_treble / 255.0;
-
+      	// Use displacement for color modulation
+      	float displacementIntensity = abs(vDisplacement) * 2.0;
+      	
       	float baseHue;
       	if (u_is_secondary > 0.5) {
-      		baseHue = mod(trebleIntensity * 0.3, 1.0);
+      		baseHue = mod(displacementIntensity * 0.3 + u_time * 0.1, 1.0);
       	} else {
-      		baseHue = mod(bassIntensity * 0.5 + midIntensity * 0.3, 1.0);
+      		baseHue = mod(displacementIntensity * 0.5 + u_time * 0.05, 1.0);
       	}
 
       	float hue = mod(baseHue + vDisplacement * 0.2, 1.0);
 
-      	float saturation = 0.7 + midIntensity * 0.3;
-      	float value = 0.5 + (u_smooth_brightness / 255.0) * 0.001;
+      	float saturation = 0.7 + displacementIntensity * 0.3;
+      	float value = 0.5 + displacementIntensity * 0.5;
       	vec3 color = hsv2rgb(vec3(hue, saturation, value));
       	gl_FragColor = vec4(color, 1.0);
       }

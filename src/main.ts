@@ -10,14 +10,12 @@ import { setupUi } from "./ui.ts";
 import type { Microphone } from "./microphone.ts";
 import { GUI } from "lil-gui";
 
+const FFT_SIZE: AnalyserNode["fftSize"] = 512;
+
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 let microphone: Microphone | null = null;
 let mouseX = 0;
 let mouseY = 0;
-let smoothBass = 0;
-let smoothMid = 0;
-let smoothTreble = 0;
-let smoothBrightness = 0;
 let orbitalAngle = 0;
 let wakeLock: null | WakeLockSentinel = null;
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -55,7 +53,9 @@ const params = {
   orbitalRadius: 3,
   orbitalSpeed: 0.5,
   sphere1Size: 4,
-  sphere2Size: 2
+  sphere2Size: 2,
+  sampleIntensity: 12,
+  sampleAmplification: 2
 };
 
 const outputPass = new OutputPass();
@@ -72,13 +72,30 @@ bloomComposer.addPass(outputPass);
 // Camera positioning.
 camera.position.set(6, 8, 14);
 
+// Calculate sample count based on fftSize (frequencyBinCount = fftSize / 2)
+const SAMPLE_COUNT = FFT_SIZE / 2;
+
+// Create DataTexture for time-domain samples
+// Use RGBA format to pack samples (4 samples per pixel for better compatibility)
+// Map [-1, 1] range to [0, 255] for UnsignedByteType
+const textureWidth = Math.ceil(SAMPLE_COUNT / 4);
+const sampleDataArray = new Uint8Array(textureWidth * 4);
+const sampleTexture = new THREE.DataTexture(
+  sampleDataArray,
+  textureWidth,
+  1,
+  THREE.RGBAFormat,
+  THREE.UnsignedByteType
+);
+sampleTexture.needsUpdate = true;
+
 const baseUniforms = {
   u_time: { value: 0 },
-  u_frequency: { value: 0 },
-  u_bass: { value: 0 },
-  u_mid: { value: 0 },
-  u_treble: { value: 0 },
-  u_smooth_brightness: { value: 0 },
+  u_samples: { value: sampleTexture },
+  u_sampleCount: { value: SAMPLE_COUNT },
+  u_textureWidth: { value: textureWidth },
+  u_sampleIntensity: { value: params.sampleIntensity },
+  u_sampleAmplification: { value: params.sampleAmplification },
   u_red: { value: params.red },
   u_green: { value: params.green },
   u_blue: { value: params.blue }
@@ -165,11 +182,9 @@ modeFolder
     sphere2.scale.setScalar(value / SPHERE2_BASE_RADIUS);
   });
 
-const getAverage = (data: Uint8Array, index1: number, index2: number) =>
-  data.slice(index1, index2).reduce((a, b) => a + b) / (index2 - index1);
-
-const smooth = (current: number, target: number, factor: number): number =>
-  current + (target - current) * factor;
+const samplesFolder = gui.addFolder("Samples");
+samplesFolder.add(params, "sampleIntensity", 0, 30).name("Intensity");
+samplesFolder.add(params, "sampleAmplification", 0.5, 5).name("Amplification");
 
 async function requestWakeLock() {
   try {
@@ -198,25 +213,24 @@ function handleVisibilityChange() {
 
 function animate() {
   if (microphone) {
-    const freqData = microphone.frequencyData;
+    // Get time-domain samples
+    const samples = microphone.samples;
 
-    const bass = getAverage(freqData, 0, 10);
-    const mid = getAverage(freqData, 10, 50);
-    const treble = getAverage(freqData, 50, 100);
-    const rawBrightness = bass + treble;
-
-    // smooth it out
-    smoothBass = smooth(smoothBass, bass, 0.5); //
-    smoothMid = smooth(smoothMid, mid, 0.5);
-    smoothTreble = smooth(smoothTreble, treble, 0.5);
-    smoothBrightness = smooth(smoothBrightness, rawBrightness, 0.1);
+    // Copy samples to texture data array
+    // Pack samples into RGBA format: map [-1, 1] to [0, 255]
+    for (let i = 0; i < Math.min(samples.length, SAMPLE_COUNT); i++) {
+      const pixelIndex = Math.floor(i / 4);
+      const channelIndex = i % 4;
+      const normalizedValue = (samples[i] + 1) * 0.5; // Map [-1, 1] to [0, 1]
+      sampleDataArray[pixelIndex * 4 + channelIndex] = Math.floor(
+        normalizedValue * 255
+      );
+    }
+    sampleTexture.needsUpdate = true;
 
     [uniforms1, uniforms2].forEach((uniforms) => {
-      uniforms.u_frequency.value = microphone!.averageFrequency;
-      uniforms.u_bass.value = smoothBass;
-      uniforms.u_mid.value = smoothMid;
-      uniforms.u_treble.value = smoothTreble;
-      uniforms.u_smooth_brightness.value = smoothBrightness;
+      uniforms.u_sampleIntensity.value = params.sampleIntensity;
+      uniforms.u_sampleAmplification.value = params.sampleAmplification;
     });
   }
 
