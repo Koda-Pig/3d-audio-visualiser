@@ -54,8 +54,10 @@ const params = {
   orbitalSpeed: 0.5,
   sphere1Size: 4,
   sphere2Size: 2,
-  sampleIntensity: 12,
-  sampleAmplification: 2
+  sampleIntensity: 8,
+  sampleAmplification: 1.5,
+  sampleSmoothing: 0.1,
+  sampleDecay: 0.02
 };
 
 const outputPass = new OutputPass();
@@ -74,6 +76,9 @@ camera.position.set(6, 8, 14);
 
 // Calculate sample count based on fftSize (frequencyBinCount = fftSize / 2)
 const SAMPLE_COUNT = FFT_SIZE / 2;
+
+// Store smoothed samples for smoothing between frames
+let smoothedSamples: Float32Array | null = null;
 
 // Create DataTexture for time-domain samples
 // Use RGBA format to pack samples (4 samples per pixel for better compatibility)
@@ -185,6 +190,7 @@ modeFolder
 const samplesFolder = gui.addFolder("Samples");
 samplesFolder.add(params, "sampleIntensity", 0, 30).name("Intensity");
 samplesFolder.add(params, "sampleAmplification", 0.5, 5).name("Amplification");
+samplesFolder.add(params, "sampleDecay", 0.001, 0.1).name("Decay Rate");
 
 async function requestWakeLock() {
   try {
@@ -216,12 +222,38 @@ function animate() {
     // Get time-domain samples
     const samples = microphone.samples;
 
-    // Copy samples to texture data array
-    // Pack samples into RGBA format: map [-1, 1] to [0, 255]
+    // Initialize smoothed array on first frame
+    if (!smoothedSamples) {
+      smoothedSamples = new Float32Array(
+        Math.min(samples.length, SAMPLE_COUNT)
+      );
+      for (let i = 0; i < smoothedSamples.length; i++) {
+        smoothedSamples[i] = samples[i];
+      }
+    }
+
+    // Apply envelope follower pattern (like example project)
+    // Fast attack when increasing, slow decay when decreasing
+    const decayRate = params.sampleDecay;
     for (let i = 0; i < Math.min(samples.length, SAMPLE_COUNT); i++) {
+      // Use absolute value for envelope (magnitude, not waveform)
+      const sampleMagnitude = Math.abs(samples[i]);
+
+      // Fast attack: if new value is greater, jump to it immediately
+      if (sampleMagnitude > smoothedSamples[i]) {
+        smoothedSamples[i] = sampleMagnitude;
+      } else {
+        // Slow decay: decrease by decay rate (exponential decay)
+        smoothedSamples[i] = smoothedSamples[i] * (1 - decayRate);
+      }
+    }
+
+    // Copy smoothed samples to texture data array
+    // Pack samples into RGBA format: map [-1, 1] to [0, 255]
+    for (let i = 0; i < Math.min(smoothedSamples.length, SAMPLE_COUNT); i++) {
       const pixelIndex = Math.floor(i / 4);
       const channelIndex = i % 4;
-      const normalizedValue = (samples[i] + 1) * 0.5; // Map [-1, 1] to [0, 1]
+      const normalizedValue = (smoothedSamples[i] + 1) * 0.5; // Map [-1, 1] to [0, 1]
       sampleDataArray[pixelIndex * 4 + channelIndex] = Math.floor(
         normalizedValue * 255
       );

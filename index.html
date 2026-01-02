@@ -121,11 +121,10 @@
       	else if (channelIndex < 1.5) sampleValue = pixelData.g;
       	else if (channelIndex < 2.5) sampleValue = pixelData.b;
       	else sampleValue = pixelData.a;
-      	sampleValue = sampleValue * 2.0 - 1.0; // Denormalize from [0, 1] to [-1, 1]
+      	// Sample value is already in [0, 1] range (envelope, not waveform)
       	// Amplify small signals to make them more visible (lower threshold)
-      	// Multiply by amplification to boost quiet sounds
       	float amplifiedValue = sampleValue * u_sampleAmplification;
-      	// Scale displacement
+      	// Scale displacement (always positive since it's envelope)
       	float displacement = amplifiedValue * u_sampleIntensity;
       	vDisplacement = displacement;
 
