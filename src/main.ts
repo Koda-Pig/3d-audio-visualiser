@@ -1,286 +1,118 @@
 import "./style.css";
+import "./wakelock";
 import * as THREE from "three";
-import {
-  EffectComposer,
-  RenderPass,
-  UnrealBloomPass,
-  OutputPass
-} from "three/examples/jsm/Addons.js";
-import { setupUi } from "./ui.ts";
-import type { Microphone } from "./microphone.ts";
 import { GUI } from "lil-gui";
+import { setupUi } from "./ui";
+import type { Microphone } from "./microphone";
+import { FFT_SIZE } from "./constants";
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
 let microphone: Microphone | null = null;
-let mouseX = 0;
-let mouseY = 0;
-let smoothBass = 0;
-let smoothMid = 0;
-let smoothTreble = 0;
-let smoothBrightness = 0;
-let orbitalAngle = 0;
-let wakeLock: null | WakeLockSentinel = null;
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-document.body.appendChild(renderer.domElement);
 
+// Scene, Camera, Renderer
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
-  45,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
+  75, // FOV
+  window.innerWidth / window.innerHeight, // Aspect ratio
+  0.1, // Near clipping plane
+  1000 // Far clipping plane
 );
-const renderScene = new RenderPass(scene, camera);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
 
-const THRESHOLD = 0;
-const STRENGTH = 0.3;
-const RADIUS = 0.1;
-const bloomPass = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth, window.innerHeight),
-  STRENGTH,
-  RADIUS,
-  THRESHOLD
-);
+// Position camera
+camera.position.z = 5;
 
 const params = {
-  red: 0,
-  green: 0,
-  blue: 0,
-  threshold: THRESHOLD,
-  strength: STRENGTH,
-  radius: RADIUS,
-  rotationSpeed: 0.02,
-  mode: "nested", // "nested" || "orbiting"
-  orbitalRadius: 3,
-  orbitalSpeed: 0.5,
-  sphere1Size: 4,
-  sphere2Size: 2
+  red: 0.5,
+  green: 0.3,
+  blue: 1
 };
 
-const outputPass = new OutputPass();
-const bloomComposer = new EffectComposer(renderer);
-
-bloomComposer.addPass(renderScene);
-bloomComposer.addPass(bloomPass);
-bloomComposer.addPass(outputPass);
-
-// Sets orbit control to move the camera around.
-// const orbit = new OrbitControls(camera, renderer.domElement);
-// orbit.update(); // Has to be done everytime we update the camera position.
-
-// Camera positioning.
-camera.position.set(6, 8, 14);
-
-const baseUniforms = {
+const uniforms = {
   u_time: { value: 0 },
-  u_frequency: { value: 0 },
-  u_bass: { value: 0 },
-  u_mid: { value: 0 },
-  u_treble: { value: 0 },
-  u_smooth_brightness: { value: 0 },
+  u_samples: { value: new Float32Array(FFT_SIZE) },
+  u_sample_count: { value: FFT_SIZE },
   u_red: { value: params.red },
   u_green: { value: params.green },
   u_blue: { value: params.blue }
 };
-const uniforms1 = {
-  ...baseUniforms,
-  u_is_secondary: { value: 0 }
-};
-const uniforms2 = {
-  ...baseUniforms,
-  u_is_secondary: { value: 1 }
-};
 
-function createSphere(radius: number, material: THREE.ShaderMaterial) {
-  const sphere = new THREE.IcosahedronGeometry(radius, 30);
-  return new THREE.Mesh(sphere, material);
-}
-
-const material1 = new THREE.ShaderMaterial({
+const geometry = new THREE.IcosahedronGeometry(2, 20);
+const material = new THREE.ShaderMaterial({
   wireframe: true,
-  uniforms: uniforms1,
-  vertexShader: document.getElementById("vertexshader")!.textContent,
-  fragmentShader: document.getElementById("fragmentshader")!.textContent
-});
-const material2 = new THREE.ShaderMaterial({
-  wireframe: true,
-  uniforms: uniforms2,
-  vertexShader: document.getElementById("vertexshader")!.textContent,
-  fragmentShader: document.getElementById("fragmentshader")!.textContent
-});
-const sphere1 = createSphere(params.sphere1Size, material1);
-const sphere2 = createSphere(params.sphere2Size, material2);
-scene.add(sphere1);
-scene.add(sphere2);
-const SPHERE1_BASE_RADIUS = params.sphere1Size;
-const SPHERE2_BASE_RADIUS = params.sphere2Size;
+  uniforms: uniforms,
+  vertexShader: `
+    uniform float u_time;
+    uniform float u_samples[${FFT_SIZE}];
+    uniform float u_sample_count;
 
+    void main() {
+      // Convert position to spherical coordinates
+      vec3 normalizedPos = normalize(position);
+      
+      // Calculate elevation angle (phi) - from 0 at top to π at bottom
+      float phi = acos(normalizedPos.y); // Range: 0 to π
+      float normalizedPhi = phi / 3.14159; // Normalize phi to 0-1
+      
+      // Map to frequency bin index
+      int sampleIndex = int(normalizedPhi * (u_sample_count - 1.0));
+      sampleIndex = clamp(sampleIndex, 0, int(u_sample_count - 1.0));
+      
+      // Get displacement from frequency data
+      float displacement = u_samples[sampleIndex] * 0.5;
+      
+      vec3 newPosition = position + normal * displacement;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+    }`,
+  fragmentShader: `
+    uniform float u_red;
+    uniform float u_blue;
+    uniform float u_green;
+    void main() {
+      gl_FragColor = vec4(vec3(u_red, u_green, u_blue), 1. );
+    }`
+});
+const sphere = new THREE.Mesh(geometry, material);
 const clock = new THREE.Clock();
+scene.add(sphere);
 
 const gui = new GUI();
-const bloomFolder = gui.addFolder("Bloom");
-const rotationFolder = gui.addFolder("Rotation");
-const modeFolder = gui.addFolder("Mode");
+const colorsFolder = gui.addFolder("Colors");
+colorsFolder.add(params, "red", 0, 1).onChange((value: string) => {
+  uniforms.u_red.value = Number(value);
+});
+colorsFolder.add(params, "green", 0, 1).onChange((value: string) => {
+  uniforms.u_green.value = Number(value);
+});
+colorsFolder.add(params, "blue", 0, 1).onChange((value: string) => {
+  uniforms.u_blue.value = Number(value);
+});
 
-bloomFolder
-  .add(params, "threshold", 0, 1)
-  .onChange((value: string) => (bloomPass.threshold = Number(value)));
-bloomFolder
-  .add(params, "strength", 0, 3)
-  .onChange((value: string) => (bloomPass.strength = Number(value)));
-bloomFolder
-  .add(params, "radius", 0, 1)
-  .onChange((value: string) => (bloomPass.radius = Number(value)));
-rotationFolder.add(params, "rotationSpeed", 0, 1);
-modeFolder
-  .add(params, "mode", ["nested", "orbiting"])
-  .onChange((value: string) => {
-    if (value === "nested") {
-      // set sphere 1 to large size, sphere 2 to small size
-      params.sphere1Size = 4;
-      params.sphere2Size = 2;
-    } else {
-      // set sphere 1 and 2 to same size
-      params.sphere1Size = 3;
-      params.sphere2Size = 3;
-    }
-    // Update the sphere scales directly
-    sphere1.scale.setScalar(params.sphere1Size / SPHERE1_BASE_RADIUS);
-    sphere2.scale.setScalar(params.sphere2Size / SPHERE2_BASE_RADIUS);
-  });
-modeFolder.add(params, "orbitalRadius", 1, 6).name("Orbital Radius");
-modeFolder.add(params, "orbitalSpeed", 0, 9).name("Orbital Speed");
-modeFolder
-  .add(params, "sphere1Size", 0.5, 8)
-  .name("Sphere 1 Size")
-  .onChange((value: number) => {
-    sphere1.scale.setScalar(value / SPHERE1_BASE_RADIUS);
-  });
-
-modeFolder
-  .add(params, "sphere2Size", 0.5, 8)
-  .name("Sphere 2 Size")
-  .onChange((value: number) => {
-    sphere2.scale.setScalar(value / SPHERE2_BASE_RADIUS);
-  });
-
-const getAverage = (data: Uint8Array, index1: number, index2: number) =>
-  data.slice(index1, index2).reduce((a, b) => a + b) / (index2 - index1);
-
-const smooth = (current: number, target: number, factor: number): number =>
-  current + (target - current) * factor;
-
-async function requestWakeLock() {
-  try {
-    wakeLock = await navigator.wakeLock.request("screen");
-    console.info("WakeLock initialised.");
-  } catch (error) {
-    console.error("Failed to activate screen wakeLock:", error);
-  }
-}
-
-function handleVisibilityChange() {
-  if (wakeLock === null) return;
-
-  if (document.visibilityState === "visible") {
-    requestWakeLock();
-  } else {
-    wakeLock
-      .release()
-      .then(() => console.info("Screen wakeLock released"))
-      .catch((error) =>
-        console.error("Failed to release screen wakeLock:", error)
-      );
-    wakeLock = null;
-  }
-}
-
-function animate() {
-  if (microphone) {
-    const freqData = microphone.frequencyData;
-
-    const bass = getAverage(freqData, 0, 10);
-    const mid = getAverage(freqData, 10, 50);
-    const treble = getAverage(freqData, 50, 100);
-    const rawBrightness = bass + treble;
-
-    // smooth it out
-    smoothBass = smooth(smoothBass, bass, 0.5); //
-    smoothMid = smooth(smoothMid, mid, 0.5);
-    smoothTreble = smooth(smoothTreble, treble, 0.5);
-    smoothBrightness = smooth(smoothBrightness, rawBrightness, 0.1);
-
-    [uniforms1, uniforms2].forEach((uniforms) => {
-      uniforms.u_frequency.value = microphone!.averageFrequency;
-      uniforms.u_bass.value = smoothBass;
-      uniforms.u_mid.value = smoothMid;
-      uniforms.u_treble.value = smoothTreble;
-      uniforms.u_smooth_brightness.value = smoothBrightness;
-    });
-  }
-
-  camera.position.x += (mouseX - camera.position.x) * 0.05;
-  camera.position.y += (mouseY - camera.position.y) * 0.05;
-  camera.lookAt(scene.position);
-
-  sphere1.rotation.y += (params.rotationSpeed * Math.PI) / 180; // Convert degrees to radians
-  sphere2.rotation.y -= (params.rotationSpeed * Math.PI) / 180; // Convert degrees to radians
-
-  // Mode-specific animation logic
-  if (params.mode === "nested") {
-    // Nested mode: rotate spheres around their own centers
-    sphere1.position.set(0, 0, 0);
-    sphere2.position.set(0, 0, 0);
-  } else if (params.mode === "orbiting") {
-    // Orbiting mode: spheres orbit around center
-    orbitalAngle += params.orbitalSpeed * 0.01; // Adjust speed multiplier as needed
-
-    const angle1 = orbitalAngle;
-    const angle2 = orbitalAngle + Math.PI; // Opposite side
-
-    sphere1.position.x = params.orbitalRadius * Math.cos(angle1);
-    sphere1.position.z = params.orbitalRadius * Math.sin(angle1);
-    sphere1.position.y = 0;
-
-    sphere2.position.x = params.orbitalRadius * Math.cos(angle2);
-    sphere2.position.z = params.orbitalRadius * Math.sin(angle2);
-    sphere2.position.y = 0;
-  }
-
-  [uniforms1, uniforms2].forEach((uniforms) => {
-    uniforms.u_time.value = clock.getElapsedTime();
-  });
-  bloomComposer.render();
-}
-
-// might need to move this inside the function below
-renderer.setAnimationLoop(animate);
 setupUi(
   document.querySelector<HTMLButtonElement>("#start-btn")!,
   document.querySelector<HTMLButtonElement>("#fullscreen-btn")!,
-  (mic) => {
-    microphone = mic;
-    if ("wakeLock" in navigator) {
-      requestWakeLock();
-    } else {
-      console.warn("The wakeLock API is not supported by this browser.");
-    }
-  }
+  (mic) => (microphone = mic)
 );
 
-window.addEventListener("resize", function () {
+// Animation loop
+function animate() {
+  requestAnimationFrame(animate);
+  sphere.rotation.x += 0.0005;
+  sphere.rotation.y += 0.0005;
+  renderer.render(scene, camera);
+
+  if (microphone) {
+    const samples = microphone.samples;
+    uniforms.u_samples.value = new Float32Array(samples);
+  }
+  uniforms.u_time.value = clock.getElapsedTime();
+}
+animate();
+
+// Handle window resize
+window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  bloomComposer.setSize(window.innerWidth, window.innerHeight);
 });
-
-document.addEventListener("mousemove", (e) => {
-  mouseX = (e.clientX - window.innerWidth / 2) / 100;
-  mouseY = (e.clientY - window.innerHeight / 2) / 100;
-});
-
-if ("wakeLock" in navigator) {
-  document.addEventListener("visibilitychange", handleVisibilityChange);
-}

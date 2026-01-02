@@ -55,13 +55,14 @@ button:focus-visible {
   width: max-content;
   height: min-content;
   margin: auto;
-  transition-property: opacity, filter;
+  transition-property: opacity, filter, visibility;
   transition-duration: 0.3s;
 
   &.hide {
     opacity: 0;
     pointer-events: none;
     filter: blur(10px);
+    visibility: hidden;
   }
 }
 

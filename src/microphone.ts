@@ -39,9 +39,13 @@ export class Microphone {
     this.microphone.connect(this.analyser);
   }
 
+  // getByteFrequencyData() returns half as many bins as the FFT size. This is because of the Nyquist theorem.
+  // https://en.wikipedia.org/wiki/Nyquist-Shannon_sampling_theorem
   get samples(): number[] {
-    this.analyser.getByteTimeDomainData(this.dataArray);
-    const normSamples = [...this.dataArray].map((e) => e / 128 - 1);
+    // this.analyser.getByteTimeDomainData(this.dataArray);
+    this.analyser.getByteFrequencyData(this.dataArray);
+    // const normSamples = [...this.dataArray].map((e) => e / 128 - 1);
+    const normSamples = [...this.dataArray].map((e) => e / 255);
     return normSamples;
   }
 

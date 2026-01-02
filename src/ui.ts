@@ -1,6 +1,5 @@
 import { Microphone } from "./microphone";
-
-let fftSize = 512;
+import { FFT_SIZE } from "./constants";
 
 function handleFullscreenClick() {
   if (document.fullscreenElement) document.exitFullscreen();
@@ -26,7 +25,7 @@ export function setupUi(
       return;
     }
 
-    const microphone = await Microphone.create(fftSize);
+    const microphone = await Microphone.create(FFT_SIZE);
     onMicrophoneReady(microphone); // Pass it back to main script
   }
 

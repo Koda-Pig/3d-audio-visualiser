@@ -4,6 +4,10 @@
 
 Deployed to https://audio-visualiser-3d.netlify.app/
 
+## Resources
+
+https://waelyasmina.net/articles/how-to-create-a-3d-audio-visualizer-using-three-js/
+
 ## TODO
 
 1. Add more visual changes depending on unused data from microphone, such as samples, volume, and frequency data. Currently only averageFrequency is used.
