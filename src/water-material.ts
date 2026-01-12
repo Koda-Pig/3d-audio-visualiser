@@ -1,43 +1,26 @@
 import * as THREE from "three";
 
 const vertexShader = /* glsl */ `
-  uniform sampler2D u_heightMap;
-  uniform float u_heightScale;
-  uniform float u_resolution;
+  varying vec2 vScreenPos;
+  varying vec3 vRayDir;
 
-  varying vec3 vWorldPosition;
-  varying vec3 vNormal;
-  varying vec2 vUv;
+  uniform mat4 u_inverseProjection;
+  uniform mat4 u_inverseView;
 
   void main() {
-    vUv = uv;
+    // Pass through clip-space position directly for fullscreen quad
+    vScreenPos = position.xy;
 
-    // Sample height at this vertex
-    float height = texture2D(u_heightMap, uv).r;
+    // Calculate ray direction in world space
+    // position.xy is in [-1, 1] clip space
+    vec4 clipPos = vec4(position.xy, 1.0, 1.0);
+    vec4 viewPos = u_inverseProjection * clipPos;
+    viewPos = viewPos / viewPos.w;
+    viewPos.w = 0.0; // Direction, not position
+    vec4 worldDir = u_inverseView * viewPos;
+    vRayDir = normalize(worldDir.xyz);
 
-    // Sample neighbors for normal calculation
-    float texelSize = 1.0 / u_resolution;
-    float heightL = texture2D(u_heightMap, uv + vec2(-texelSize, 0.0)).r;
-    float heightR = texture2D(u_heightMap, uv + vec2(texelSize, 0.0)).r;
-    float heightU = texture2D(u_heightMap, uv + vec2(0.0, texelSize)).r;
-    float heightD = texture2D(u_heightMap, uv + vec2(0.0, -texelSize)).r;
-
-    // Calculate normal from height differences
-    vec3 normal = normalize(vec3(
-      (heightL - heightR) * u_heightScale,
-      2.0,
-      (heightD - heightU) * u_heightScale
-    ));
-
-    // Displace vertex
-    vec3 displaced = position;
-    displaced.y += height * u_heightScale;
-
-    vec4 worldPosition = modelMatrix * vec4(displaced, 1.0);
-    vWorldPosition = worldPosition.xyz;
-    vNormal = normalize(normalMatrix * normal);
-
-    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
   }
 `;
 
@@ -53,21 +36,69 @@ const fragmentShader = /* glsl */ `
   uniform float u_specularPower;
   uniform sampler2D u_heightMap;
   uniform float u_heightScale;
+  uniform float u_resolution;
+  uniform float u_simulationScale;
 
-  varying vec3 vWorldPosition;
-  varying vec3 vNormal;
-  varying vec2 vUv;
+  varying vec2 vScreenPos;
+  varying vec3 vRayDir;
 
   void main() {
-    vec3 normal = normalize(vNormal);
-    vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+    vec3 rayDir = normalize(vRayDir);
+
+    // If looking up (ray won't hit water plane), discard
+    if (rayDir.y >= 0.0) {
+      discard;
+    }
+
+    // Calculate ray-plane intersection with y=0 plane
+    // Ray: P = cameraPosition + t * rayDir
+    // Plane: y = 0
+    // Solve: cameraPosition.y + t * rayDir.y = 0
+    float t = -cameraPosition.y / rayDir.y;
+
+    // Calculate world position at intersection
+    vec3 worldPos = cameraPosition + t * rayDir;
+
+    // Map world XZ to UV coordinates
+    // simulationScale controls the world size covered by the simulation
+    vec2 uv = worldPos.xz / u_simulationScale + 0.5;
+
+    // Calculate distance from center for edge fading
+    vec2 uvCentered = uv - 0.5;
+    float distFromCenter = length(uvCentered) * 2.0; // 0 at center, 1 at edges
+
+    // Fade factor: smooth transition from full waves to flat at edges
+    float fadeFactor = 1.0 - smoothstep(0.8, 1.0, distFromCenter);
+
+    // Clamp UVs to valid range for sampling
+    vec2 clampedUv = clamp(uv, 0.0, 1.0);
+
+    // Sample height at this point
+    float height = texture2D(u_heightMap, clampedUv).r * fadeFactor;
+
+    // Sample neighbors for normal calculation
+    float texelSize = 1.0 / u_resolution;
+
+    float heightL = texture2D(u_heightMap, clamp(clampedUv + vec2(-texelSize, 0.0), 0.0, 1.0)).r * fadeFactor;
+    float heightR = texture2D(u_heightMap, clamp(clampedUv + vec2(texelSize, 0.0), 0.0, 1.0)).r * fadeFactor;
+    float heightU = texture2D(u_heightMap, clamp(clampedUv + vec2(0.0, texelSize), 0.0, 1.0)).r * fadeFactor;
+    float heightD = texture2D(u_heightMap, clamp(clampedUv + vec2(0.0, -texelSize), 0.0, 1.0)).r * fadeFactor;
+
+    // Calculate normal from height differences (matching original behavior)
+    vec3 normal = normalize(vec3(
+      (heightL - heightR) * u_heightScale,
+      2.0,
+      (heightD - heightU) * u_heightScale
+    ));
+
+    // Update world position with actual height
+    worldPos.y = height * u_heightScale;
+
+    vec3 viewDir = normalize(cameraPosition - worldPos);
 
     // Fresnel effect - more reflective at grazing angles
     float fresnel = pow(1.0 - max(dot(viewDir, normal), 0.0), u_fresnelPower);
     fresnel = clamp(fresnel, 0.02, 1.0); // Always some reflection
-
-    // Sample height for depth-based coloring
-    float height = texture2D(u_heightMap, vUv).r;
 
     // Water color based on "depth" (inverted height)
     float depthFactor = clamp(-height * 2.0 + 0.5, 0.0, 1.0);
@@ -97,6 +128,7 @@ const fragmentShader = /* glsl */ `
 
 export interface WaterMaterialOptions {
   resolution: number;
+  simulationScale?: number;
   heightScale?: number;
   waterColorDeep?: THREE.Color;
   waterColorShallow?: THREE.Color;
@@ -135,6 +167,9 @@ export class WaterMaterial extends THREE.ShaderMaterial {
       u_heightMap: { value: heightTexture },
       u_heightScale: { value: options.heightScale ?? 5.0 },
       u_resolution: { value: resolution },
+      u_simulationScale: { value: options.simulationScale ?? 100.0 },
+      u_inverseProjection: { value: new THREE.Matrix4() },
+      u_inverseView: { value: new THREE.Matrix4() },
       u_waterColorDeep: {
         value: options.waterColorDeep ?? new THREE.Color(0x001e3c),
       },
@@ -179,6 +214,14 @@ export class WaterMaterial extends THREE.ShaderMaterial {
     this.heightTexture.needsUpdate = true;
   }
 
+  /**
+   * Update camera matrices for ray casting (must be called each frame)
+   */
+  updateCameraMatrices(camera: THREE.PerspectiveCamera): void {
+    this.uniforms.u_inverseProjection.value.copy(camera.projectionMatrixInverse);
+    this.uniforms.u_inverseView.value.copy(camera.matrixWorld);
+  }
+
   // Accessors for common uniforms
   get heightScale(): number {
     return this.uniforms.u_heightScale.value;
@@ -210,5 +253,12 @@ export class WaterMaterial extends THREE.ShaderMaterial {
 
   get sunDirection(): THREE.Vector3 {
     return this.uniforms.u_sunDirection.value;
+  }
+
+  get simulationScale(): number {
+    return this.uniforms.u_simulationScale.value;
+  }
+  set simulationScale(value: number) {
+    this.uniforms.u_simulationScale.value = value;
   }
 }

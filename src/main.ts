@@ -10,8 +10,8 @@ import { WaterMaterial } from "./water-material";
 import { AudioRippleMapper } from "./audio-ripple-mapper";
 
 // Configuration
-const WATER_SIZE = 100;
 const SIMULATION_RESOLUTION = 256;
+const SIMULATION_SCALE = 100; // World units covered by wave simulation
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -45,6 +45,7 @@ const waveSimulation = new WaveSimulation(SIMULATION_RESOLUTION);
 // Water material
 const waterMaterial = new WaterMaterial({
   resolution: SIMULATION_RESOLUTION,
+  simulationScale: SIMULATION_SCALE,
   heightScale: 5.0,
   waterColorDeep: new THREE.Color(0x001a33),
   waterColorShallow: new THREE.Color(0x006994),
@@ -57,16 +58,12 @@ const waterMaterial = new WaterMaterial({
   specularPower: 256,
 });
 
-// Water plane geometry
-const waterGeometry = new THREE.PlaneGeometry(
-  WATER_SIZE,
-  WATER_SIZE,
-  SIMULATION_RESOLUTION - 1,
-  SIMULATION_RESOLUTION - 1
-);
-waterGeometry.rotateX(-Math.PI / 2); // Make horizontal
+// Fullscreen quad geometry for raymarched water
+// This is a 2x2 plane in clip space that will be rendered with ray casting
+const waterGeometry = new THREE.PlaneGeometry(2, 2);
 
 const waterMesh = new THREE.Mesh(waterGeometry, waterMaterial);
+waterMesh.frustumCulled = false; // Always render the fullscreen quad
 scene.add(waterMesh);
 
 // Audio integration
@@ -151,6 +148,9 @@ function animate() {
 
   // Update shader with new height data
   waterMaterial.updateHeightMap(waveSimulation.getHeightData());
+
+  // Update camera matrices for ray casting
+  waterMaterial.updateCameraMatrices(camera);
 
   // Update controls
   controls.update();
